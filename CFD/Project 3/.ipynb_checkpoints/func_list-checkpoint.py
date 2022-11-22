@@ -7,26 +7,26 @@ def GenPointer(nx, ny):
 
     ## Pointer matrix for P
     id_p = 0 # index to be used in vector variable P
-    for i in range(0,nx+1):
-        for j in range(0,ny+1):
+    for i in range(0,nx):
+        for j in range(0,ny):
             ip[i, j] = id_p
             id_p = id_p + 1 
 
     ## Pointer matrix for ux
     id_u = 0  # index to be used in vector variable u = [ux; uy]
-    for i in range(1,nx+1):
-        for j in range(0,ny+1):
+    for i in range(1,nx):
+        for j in range(0,ny):
             iu[i, j] = id_u
             id_u = id_u + 1
 
     ## Pointer matrix for uy
-    for i in range(0,nx+1):
-        for j in range(1,ny+1):
+    for i in range(0,nx):
+        for j in range(1,ny):
             iv[i, j] = id_u
             id_u = id_u + 1
-    return ip,iu,iv
+    return ip.astype(int),iu.astype(int),iv.astype(int)
 
-def Grad(qi,np,nu,nx,ny,dx,dy,iu,iv,ip):
+def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip):
     ## Gradient operator: 
     #       input: p-type (np elements)
     #       output: u-type (nu elements)
@@ -35,44 +35,44 @@ def Grad(qi,np,nu,nx,ny,dx,dy,iu,iv,ip):
 
     ## inner domain
     ## x-direction gradient
-    for i in range(1,nx):
-        for j in range(ny):
+    for i in range(1,nx-1):
+        for j in range(ny-1):
             qo[iu[i, j]] = ( -qi[ip[i-1, j]] + qi[ip[i, j]] ) / dx
 
     ## y-direction gradient
-    for i in range(nx):
-        for j in range(1,ny):
+    for i in range(nx-1):
+        for j in range(1,ny-1):
             qo[iv[i, j]] = ( -qi[ip[i, j-1]] + qi[ip[i, j]] ) / dy ;
     return qo
 
-def Div(qi,np,nu,nx,ny,dx,dy,iu,iv,ip):
+def Div(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip):
 
     ## Initialize output
-    qo = np.nan*np.ones((np,1))
+    qo = np.nan*np.ones((np_,1))
 
     ## inner domain
-    for i in range(1,nx):
-        for j in range(1,ny):
+    for i in range(1,nx-1):
+        for j in range(1,ny-1):
             qo[ip[i, j]] = ((- qi[iu[i, j]] + qi[iu[i+1, j]] ) / dx) + ((- qi[iv[i, j]] + qi[iv[i, j+1]] ) / dy)
     ## Edges
     ## bottom inner
     j=0
-    for i in range(1,nx):
+    for i in range(1,nx-1):
         qo[ip[i, j]] = ((- qi[iu[i, j]] + qi[iu[i+1, j]] ) / dx) + (( + qi[iv[i, j+1]] ) / dy)  ## -qi[iv[i, j]]
 
     ## top inner
     j = -1
-    for i in range(1,nx):
+    for i in range(1,nx-1):
         qo[ip[i, j]] = (( - qi[iu[i, j]] + qi[iu[i+1, j]] ) / dx) + (( - qi[iv[i, j]]) / dy)   ## + qi[iv[i, j+1]]
 
     ## left inner
     i = 0
-    for j in range(1,ny):
+    for j in range(1,ny-1):
         qo[ip[i, j]] = ((+ qi[iu[i+1, j]] ) / dx)  + (( - qi[iv[i, j]] + qi[iv[i, j+1]] ) / dy) ## - qi[iu[i, j]] 
 
     ## right inner
     i=-1
-    for j in range(1,ny):
+    for j in range(1,ny-1):
         qo[ip[i, j]] = ((- qi[iu[i, j]] ) / dx) + ((- qi[iv[i, j]] + qi[iv[i, j+1]] ) / dy) ##+ qi[iu[i+1, j]] 
 
     ## Corners
@@ -100,24 +100,24 @@ def Div(qi,np,nu,nx,ny,dx,dy,iu,iv,ip):
     
     return qo
 
-def BC_Div(uBC_L, uBC_R, vBC_T, vBC_B,np,ip,nx,ny,dx,dy):
+def BC_Div(uBC_L, uBC_R, vBC_T, vBC_B,np_,ip,nx,ny,dx,dy):
     
     ## BC vector for divergence operator: 
     #       input: BCs
     #       output: p-type (np elements)
 
     ## Initialize output
-    bcD = np.zeros((np, 1))
+    bcD = np.zeros((np_, 1))
 
     ## Edges
     # bottom inner
     i=-1
-    for j in range(1,ny):
+    for j in range(1,ny-1):
         bcD[ip[i, j]] =   -vBC_B / dy 
 
     # top inner
     j = -1
-    for i in range(1,nx):
+    for i in range(1,nx-1):
         bcD[ip[i, j]] =   vBC_T / dy   # qi(iv(i, j+1))
     # left inner
     i = 0
@@ -126,7 +126,7 @@ def BC_Div(uBC_L, uBC_R, vBC_T, vBC_B,np,ip,nx,ny,dx,dy):
 
     # right inner
     i=-1
-    for j in range(1,ny):
+    for j in range(1,ny-1):
         bcD[ip[i, j]] = uBC_R / dx
 
 
@@ -165,30 +165,30 @@ def Laplace(qi,nu,iu,iv,nx,ny,dx,dy ):
 
     ## 1. ex-Component
     ## inner domain
-    for i in range(2,nx):
-        for j in range(1,ny):
+    for i in range(2,nx-1):
+        for j in range(1,ny-1):
             qo[iu[i, j]] = (+qi[iu[i-1, j]] -2*qi[iu[i, j]] + qi[iu[i+1, j]] ) / (dx**2) + ( +qi[iu[i, j-1]] -2*qi[iu[i, j]] + qi[iu[i, j+1]] ) / (dy**2)
 
     ## Edges
     # left inner 
     i = 1
-    for j in range(1,ny):
+    for j in range(1,ny-1):
             qo[iu[i, j]] = (-2*qi[iu[i, j]] + qi[iu[i+1, j]] ) / (dx**2) + ( +qi[iu[i, j-1]] -2*qi[iu[i, j]] + qi[iu[i, j+1]] ) / (dy**2) # + uBC_L / (dx^2)
 
     # bottom inner
     j = 0
-    for i in range(2,nx):
+    for i in range(2,nx-1):
             qo[iu[i, j]] =   ( +qi[iu[i-1, j]] -2*qi[iu[i, j]] + qi[iu[i+1, j]] ) / (dx**2) + ( -qi[iu[i, j]]   -2*qi[iu[i, j]] + qi[iu[i, j+1]] ) / (dy**2) #   ## + 2*uBC_B / (dy^2) 
 
     #right inner
     i=-1
-    for j in range(1,ny):
+    for j in range(1,ny-1):
         qo[iu[i, j]] = (+qi[iu[i-1, j]] -2*qi[iu[i, j]] ) / (dx**2) + ( +qi[iu[i, j-1]] -2*qi[iu[i, j]] + qi[iu[i, j+1]] ) / (dy**2) # qi[iu[i+1, j]] 
     
 
     #top inner
     j=-1
-    for i in range(2,nx):
+    for i in range(2,nx-1):
         qo[iu[i, j]] = (+qi[iu[i-1, j]] -2*qi[iu[i, j]] + qi[iu[i+1, j]] ) / (dx**2) + ( +qi[iu[i, j-1]] -2*qi[iu[i, j]]  ) / (dy**2)  #+ qi[iu[i, j+1]]
         
 
@@ -218,31 +218,31 @@ def Laplace(qi,nu,iu,iv,nx,ny,dx,dy ):
 
     ## 2. ey-Component
     ## inner domain
-    for i in range(1,nx):
-        for j in range(2,ny):
+    for i in range(1,nx-1):
+        for j in range(2,ny-1):
             qo[iv[i, j]] = (+qi[iv[i-1, j]] -2*qi[iv[i, j]] + qi[iv[i+1, j]] ) / (dx**2) + ( +qi[iv[i, j-1]] -2*qi[iv[i, j]] + qi[iv[i, j+1]] ) / (dy**2)
 
 
     ## Edges
     # left inner 
     i = 0
-    for j in range(2,ny):
+    for j in range(2,ny-1):
         qo[iv[i, j]] = (-qi[iv[i, j]] -2*qi[iv[i, j]] + qi[iv[i+1, j]] ) / (dx**2) + ( +qi[iv[i, j-1]] -2*qi[iv[i, j]] + qi[iv[i, j+1]] ) / (dy**2) # + 2uBC_L / (dx^2)
 
     # bottom inner
     j = 1
-    for i in range(1,nx):
+    for i in range(1,nx-1):
             qo[iv[i, j]] =   ( +qi[iv[i-1, j]] -2*qi[iv[i, j]] + qi[iv[i+1, j]] ) / (dx**2) + (    -2*qi[iv[i, j]] + qi[iv[i, j+1]] ) / (dy**2) #   ## + uBC_B / (dy^2) 
 
     #right inner
     i=-1
-    for j in range(2,ny):
+    for j in range(2,ny-1):
         qo[iv[i, j]] = (+qi[iv[i-1, j]] -2*qi[iv[i, j]] - qi[iv[i, j]]) / (dx**2) + ( +qi[iv[i, j-1]] -2*qi[iv[i, j]] + qi[iv[i, j+1]] ) / (dy**2) # 2UBCR/dx**2
     
 
     #top inner
     j=-1
-    for i in range(1,nx):
+    for i in range(1,nx-1):
         qo[iv[i, j]] = (+qi[iv[i-1, j]] -2*qi[iv[i, j]] + qi[iv[i+1, j]] ) / (dx**2) + ( +qi[iv[i, j-1]] -2*qi[iv[i, j]]  ) / (dy**2)  #+ ubC_t/(dy**2)
 
 
@@ -293,21 +293,21 @@ def BC_Laplace(uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,n
     ## Edges
     # left inner 
     i = 1 
-    for j in range(1,ny):
+    for j in range(1,ny-1):
         bcL[iu[i, j]] = +   uBC_L / (dx**2)
     ## bottom inner
     j = 0
-    for i in range(2,nx):
+    for i in range(2,nx-1):
         bcL[iu[i, j]] = + 2*uBC_B / (dy**2)
     ## right inner
     i = -1
-    for j in range(1,ny):
+    for j in range(1,ny-1):
          bcL[iu[i, j]] = +   uBC_R / (dx**2)
 
 
     # top inner
     j=-1
-    for i in range(2,nx):
+    for i in range(2,nx-1):
          bcL[iu[i, j]] = +   uBC_T / (dy**2)
 
 
@@ -341,21 +341,21 @@ def BC_Laplace(uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,n
     ## Edges
     # left inner 
     i = 0 
-    for j in range(2,ny):
+    for j in range(2,ny-1):
         bcL[iv[i, j]] = + 2*uBC_L / (dx**2)
     ## bottom inner
     j = 1
-    for i in range(1,nx):
+    for i in range(1,nx-1):
         bcL[iv[i, j]] = + uBC_B / (dy**2) 
     ## right inner
     i = -1
-    for j in range(2,ny):
+    for j in range(2,ny-1):
          bcL[iv[i, j]] = 2*uBC_R/dx**2
 
 
     # top inner
     j=-1
-    for i in range(1,nx):
+    for i in range(1,nx-1):
          bcL[iv[i, j]] = +   uBC_T / (dy**2)
 
 
@@ -399,7 +399,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
 
     ## 1. U-Component
     ## inner domain
-    for i in range(2,nx): 
+    for i in range(2,nx-1): 
         for j in range(1,ny):
             qo[iu[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2          \
                                             + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 )   \
@@ -409,7 +409,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     ## Edges
     ## left inner 
     i = 1
-    for j in range(2,ny):
+    for j in range(2,ny-1):
         qo[iu[i, j]] = - ( - ( uBC_L           + qi[iu[i  ,j  ]] ) / 2 * ( uBC_L           + qi[iu[i  ,j  ]] ) / 2          \
                                + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 ) / dx  \
                            - ( - ( qi(iu(i  ,j-1)) + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
@@ -417,7 +417,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
 
     # bottom inner
     j = 0
-    for i in range(2,nx):
+    for i in range(2,nx-1):
         qo[iu[i, j]] = - ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2          \
                                + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 ) / dx   \
                            - ( -   uBC_B                                   *   vBC_B                                            \
@@ -425,7 +425,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
 
     # right inner
     i=-1
-    for j in range(1,ny):
+    for j in range(1,ny-1):
         qo[iu[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2         \
                                             + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 )   \
                                - (1/dy) * ( - ( qi(iu(i  ,j-1)) +uBC_R ) / 2 * ( qi[iv[i-1,j  ]] + uBC_R ) / 2          \
@@ -433,7 +433,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
 
     # top inner
     j=-1
-    for i in range(2,nx):
+    for i in range(2,nx-1):
         qo[iu[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2         \
                                             + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 )   \
                                - (1/dy) * ( - ( qi(iu(i  ,j-1)) + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
@@ -478,8 +478,8 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
 
     ## 2. V-Component
     ## inner domain
-    for i in range(1,nx): 
-        for j in range(2,ny):
+    for i in range(1,nx-1): 
+        for j in range(2,ny-1):
             qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
                                         + ( qi[iu[i+1 ,j-1  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
                            - (1/dy) * ( - ( qi(iv(i  ,j-1)) + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
@@ -488,7 +488,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     ## Edges
     # left inner
     i=0
-    for j in range(2,ny):
+    for j in range(2,ny-1):
         qo[iv[i, j]] = - (1/dx) * ( - ( uBC_L*vBC_L)         \
                                 + ( qi[iu[i+1 ,j  ]] + qi[iu[i+1,j -1]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
                 - (1/dy) * ( - ( qi(iv(i  ,j-1)) + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
@@ -497,7 +497,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     
     # bottom inner 
     j=1
-    for i in range(1,nx):
+    for i in range(1,nx-1):
             qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i,j-1]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
                             - ( qi[iu[i+1 ,j-1  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
                - (1/dy) * (  ( vBC_B+ qi[iv[i  ,j  ]] ) / 2 * ( vBC_B+ qi[iv[i  ,j  ]] ) / 2          \
@@ -505,7 +505,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
 
     # right inner
     i=-1
-    for j in range(2,ny):
+    for j in range(2,ny-1):
         qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i,j  ]] + qi[iu[i  ,j -1]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
                             + ( uBC_R*vBC_R) )   \
                - (1/dy) * ( - ( qi(iv(i  ,j-1)) + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
@@ -513,7 +513,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
 
     # top inner 
     j=-1
-    for i in range(1,nx):
+    for i in range(1,nx-1):
         qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
                                 + ( qi[iu[i+1 ,j-1  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
                 - (1/dy) * ( - ( qi(iv(i  ,j-1)) + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
@@ -551,3 +551,22 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
                - (1/dy) * ( - ( qi(iv(i  ,j-1)) + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
                             + ( qi[iv[i  ,j+1  ]] + qi[iv[i  ,j]] ) / 2 * ( qi[iv[i,j+1]] + qi[iv[i  ,j]] ) / 2 )   
     return qo
+
+
+def CG_solver(Opt,b,qi,args):
+    b_residual=[]
+    Q=qi
+    d_old=b-Opt(qi,args)
+    r_old=d_old
+    for i in range(cg_iter):
+        intermediate_vec=Opt(d_old,args)
+        alpha_factor=((r_old.T)@r_old)/((d_old.T)@(intermediate_vec))
+
+        Q=Q+(alpha_factor[0,0])*d_old
+        r_new=r_old-(alpha_factor[0,0])*(intermediate_vec)
+
+        beta=((r_new.T)@(r_new))/((r_old.T)@(r_old))
+        d_new=r_new+(beta[0,0])*d_old
+        d_old=d_new
+        r_old=r_new
+    return Q
