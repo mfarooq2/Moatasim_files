@@ -35,14 +35,14 @@ def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip):
 
     ## inner domain
     ## x-direction gradient
-    for i in range(1,nx-1):
-        for j in range(ny-1):
+    for i in range(1,nx):
+        for j in range(0,ny):
             qo[iu[i, j]] = ( -qi[ip[i-1, j]] + qi[ip[i, j]] ) / dx
 
     ## y-direction gradient
-    for i in range(nx-1):
-        for j in range(1,ny-1):
-            qo[iv[i, j]] = ( -qi[ip[i, j-1]] + qi[ip[i, j]] ) / dy ;
+    for i in range(0,nx):
+        for j in range(1,ny):
+            qo[iv[i, j]] = ( -qi[ip[i, j-1]] + qi[ip[i, j]] ) / dy
     return qo
 
 def Div(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip):
@@ -552,13 +552,26 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
                             + ( qi[iv[i  ,j+1  ]] + qi[iv[i  ,j]] ) / 2 * ( qi[iv[i,j+1]] + qi[iv[i  ,j]] ) / 2 )   
     return qo
 
+def S_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
+    return qi+(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy)
+
+
+def R_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
+    return qi-(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy)
+    
+def R_inv_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
+    return qi+(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy)    
+
 
 def CG_solver(Opt,b,qi,args,dt,v,cg_iter):
-    rhs=(2/(dt*v))*(b-qi)
-    lhs=Opt(qi,*args)
+    rhs=b
+    #lhs=Opt(qi,*args)
+    #d_old=rhs-lhs
+    #r_old=d_old
+
     d_old=rhs-lhs
     r_old=d_old
-    
+
     for i in range(cg_iter):
         intermediate_vec=Opt(d_old,*args)
         alpha_factor=((r_old.T)@r_old)/((d_old.T)@(intermediate_vec))
@@ -571,3 +584,10 @@ def CG_solver(Opt,b,qi,args,dt,v,cg_iter):
         d_old=d_new
         r_old=r_new
     return qi
+
+def pointer_mapping(mat):
+    vis_mat=pd.DataFrame(mat)
+    vis_mat.columns=[f"x={i}" for i in vis_mat.columns]
+    vis_mat.index=[f"y={len(vis_mat.index)-(i+1)}" for i in vis_mat.index]
+    return vis_mat
+    
