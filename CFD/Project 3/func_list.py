@@ -24,6 +24,9 @@ def GenPointer(nx, ny):
         for j in range(1,ny):
             iv[i, j] = id_u
             id_u = id_u + 1
+    ip[np.isnan(ip)]=0
+    iv[np.isnan(iv)]=0
+    iu[np.isnan(iu)]=0
     return ip.astype(int),iu.astype(int),iv.astype(int)
 
 def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip):
