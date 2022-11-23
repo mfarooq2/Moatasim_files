@@ -399,7 +399,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
 
     ## 1. U-Component
     ## inner domain
-    for i in range(2,nx-2): 
+    for i in range(2,nx-1): 
         for j in range(1,ny-1):
             qo[iu[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2          \
                                             + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 )   \
@@ -409,7 +409,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     ## Edges
     ## left inner 
     i = 1
-    for j in range(2,ny-1):
+    for j in range(1,ny-1):
         qo[iu[i, j]] = - ( - ( uBC_L           + qi[iu[i  ,j  ]] ) / 2 * ( uBC_L           + qi[iu[i  ,j  ]] ) / 2          \
                                + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 ) / dx  \
                            - ( - ( qi[iu[i  ,j-1]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
@@ -565,10 +565,13 @@ def R_inv_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
 
 def CG_solver(Opt,b,qi,args,dt,v,cg_iter):
     rhs=b
-    lhs=Opt(qi,*args)
+    #lhs=Opt(qi,*args)
+    #d_old=rhs-lhs
+    #r_old=d_old
+
     d_old=rhs-lhs
     r_old=d_old
-    
+
     for i in range(cg_iter):
         intermediate_vec=Opt(d_old,*args)
         alpha_factor=((r_old.T)@r_old)/((d_old.T)@(intermediate_vec))
