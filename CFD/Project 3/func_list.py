@@ -565,10 +565,7 @@ def R_inv_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
 
 def CG_solver(Opt,b,qi,args,dt,v,cg_iter):
     rhs=b
-    #lhs=Opt(qi,*args)
-    #d_old=rhs-lhs
-    #r_old=d_old
-
+    lhs=Opt(qi,*args)
     d_old=rhs-lhs
     r_old=d_old
 
