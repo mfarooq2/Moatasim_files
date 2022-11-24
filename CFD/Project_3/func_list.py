@@ -30,7 +30,7 @@ def GenPointer(nx, ny):
     iu[np.isnan(iu)]=0
     return ip.astype(int),iu.astype(int),iv.astype(int)
 
-def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip):
+def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
     ## Gradient operator: 
     #       input: p-type (np elements)
     #       output: u-type (nu elements)
@@ -49,7 +49,7 @@ def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip):
             qo[iv[i, j]] = ( -qi[ip[i, j-1]] + qi[ip[i, j]] ) / dy
     return qo
 
-def Div(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip):
+def Div(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
 
     ## Initialize output
     qo = np.nan*np.ones((np_,1))
@@ -158,7 +158,7 @@ def BC_Div(uBC_L, uBC_R, vBC_T, vBC_B,np_,ip,nx,ny,dx,dy):
 
     return bcD
 
-def Laplace(qi,nu,iu,iv,nx,ny,dx,dy ):
+def Laplace(qi,nu,iu,iv,nx,ny,dx,dy,dt,v ):
     
     ## Laplace operator: 
     #       input: u-type (nu elements)
@@ -387,9 +387,7 @@ def BC_Laplace(uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,n
 
     return bcL
 
-def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,ny,dx,dy):
-
-    
+def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,ny,dx,dy,dt,v):
     
     
     ## advection operator (BC embedded): -\nabla \cdot (uu) 
@@ -557,17 +555,17 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     return qo
 
 def S_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
-    return qi+(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy)
+    return qi+(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy,dt,v)
 
 
 def R_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
-    return qi-(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy)
+    return qi-(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy,dt,v)
     
 def R_inv_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
-    return qi+(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy)    
+    return qi+(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy,dt,v)    
 
 
-def CG_solver(Opt,b,qi,args,dt,v,cg_iter):
+def CG_solver(Opt,b,qi,args,cg_iter):
     rhs=b
     lhs=Opt(qi,*args)
     d_old=rhs-lhs
@@ -586,9 +584,150 @@ def CG_solver(Opt,b,qi,args,dt,v,cg_iter):
         r_old=r_new
     return qi
 
+def CG_solver_all(Opt,b,qi,args1,args2,args3,cg_iter):
+    rhs=b
+    if len(Opt)==3:
+        #lhs=Opt[0](qi,*args1)
+        #lhs=Opt[1](lhs,*args2)
+        lhs=Opt[2](Opt[1](Opt[0](qi,*args1),*args2),*args3)
+    elif len(Opt)==2:
+        lhs=Opt[1](Opt[0](qi,*args1),*args2)
+    elif len(Opt)==1:
+        lhs=Opt[0](qi,*args1)
+    
+    d_old=rhs-lhs
+    r_old=d_old
+
+    for i in range(cg_iter):
+        if len(Opt)==3:
+            intermediate_vec=Opt[2](Opt[1](Opt[0](d_old,*args1),*args2),*args3)
+        elif len(Opt)==2:
+            intermediate_vec=Opt[1](Opt[0](d_old,*args1),*args2)
+        elif len(Opt)==1:
+            intermediate_vec=Opt[0](d_old,*args1)
+
+        alpha_factor=((r_old.T)@r_old)/((d_old.T)@(intermediate_vec))
+
+        qi=qi+(alpha_factor[0,0])*d_old
+        r_new=r_old-(alpha_factor[0,0])*(intermediate_vec)
+
+        beta=((r_new.T)@(r_new))/((r_old.T)@(r_old))
+        d_new=r_new+(beta[0,0])*d_old
+        d_old=d_new
+        r_old=r_new
+
+    return qi
+
 def pointer_mapping(mat):
     vis_mat=pd.DataFrame(mat)
     vis_mat.columns=[f"x={i}" for i in vis_mat.columns]
     vis_mat.index=[f"y={len(vis_mat.index)-(i+1)}" for i in vis_mat.index]
     return vis_mat
+
+def curl_operator(qi,np_,nu,ip,iu,iv,nx,ny,dx,dy,dt,v):
+        ## Initialize output
+    qo = np.nan*np.ones((np_,1))
+
+    ## inner domain
+    for i in range(1,nx-1):
+        for j in range(1,ny-1):
+            qo[ip[i, j]] = ((- qi[iv[i, j]] + qi[iv[i+1, j]] ) / dx) - ((- qi[iu[i, j]] + qi[iu[i, j+1]] ) / dy)
+    ## Edges
+    ## bottom inner
+    j=0
+    for i in range(1,nx-1):
+        qo[ip[i, j]] = ((- qi[iv[i, j]] + qi[iv[i+1, j]] ) / dx) - (( + qi[iu[i, j+1]] ) / dy)  ## -qi[iv[i, j]]
+
+    ## top inner
+    j = -1
+    for i in range(1,nx-1):
+        qo[ip[i, j]] = (( - qi[iv[i, j]] + qi[iv[i+1, j]] ) / dx) - (( - qi[iu[i, j]]) / dy)   ## + qi[iv[i, j+1]]
+
+    ## left inner
+    i = 0
+    for j in range(1,ny-1):
+        qo[ip[i, j]] = ((+ qi[iv[i+1, j]] ) / dx)  - (( - qi[iu[i, j]] + qi[iu[i, j+1]] ) / dy) ## - qi[iu[i, j]] 
+
+    ## right inner
+    i=-1
+    for j in range(1,ny-1):
+        qo[ip[i, j]] = ((- qi[iv[i, j]] ) / dx) - ((- qi[iu[i, j]] + qi[iu[i, j+1]] ) / dy) ##+ qi[iu[i+1, j]] 
+
+    ## Corners
+    ## bottom left (pinning)
+    i = 0
+    j = 0
+    #qo[ip[i, j]] = (( + qi[iu[i+1, j]] ) / dx) + (( + qi[iv[i, j+1]] ) / dy)
+    qo[ip[i, j]] = 0
+
+    # bottom right (pinning)
+    i=-1
+    j=0
+    #qo[ip[i, j]] =((- qi[iu[i, j]] ) / dx) + ( + qi[iv[i, j+1]] ) / dy)
+    qo[ip[i, j]] =0
+
+    ## top left
+    i = 0
+    j = -1
+    qo[ip[i, j]] = ((+ qi[iv[i+1, j]] ) / dx) - (( - qi[iu[i, j]]) / dy) ## - qi[iu[i, j]]   ## + qi[iv[i, j+1]] 
+
+    ## top right
+    i=-1
+    j=-1
+    qo[ip[i, j]] =((- qi[iv[i, j]] ) / dx) - ((- qi[iu[i, j]] ) / dy) # ## + qi[iu[i+1, j]]  + qi[iv[i, j+1]] 
     
+    return qo
+
+def BC_Curl(uBC_L, uBC_R, vBC_T, vBC_B,np_,ip,nx,ny,dx,dy):
+
+    ## BC vector for divergence operator: 
+    #       input: BCs
+    #       output: p-type (np elements)
+
+    ## Initialize output
+    bcC = np.zeros((np_, 1))
+
+    ## Edges
+    # bottom inner
+    i=-1
+    for j in range(1,ny-1):
+        bcC[ip[i, j]] =   -vBC_B / dx 
+
+    # top inner
+    j = -1
+    for i in range(1,nx-1):
+        bcC[ip[i, j]] =   vBC_T / dx   # qi(iv(i, j+1))
+    # left inner
+    i = 0
+    for j in range(1,ny-1):
+        bcC[ip[i, j]] = - uBC_L / dy
+
+    # right inner
+    i=-1
+    for j in range(1,ny-1):
+        bcC[ip[i, j]] = uBC_R / dy
+
+
+    ## Corners
+    # bottom left (need pinning)
+    i = 0
+    j = 0
+    bcC[ip[i, j]] = 0
+
+    # bottom right
+    i=-1
+    j=0
+    bcC[ip[i, j]] = 0
+    
+
+    # top left
+    i = 0
+    j = -1
+    bcC[ip[i, j]] = (- uBC_L / dy) - (vBC_T / dx) # - qi[iu[i, j]] + qi(iv(i, j+1))
+
+    # top right
+    i=-1
+    j=-1
+    bcC[ip[i, j]] = (+ uBC_R / dy) - (vBC_T / dx) # ## + qi[iu[i+1, j]]  + qi[iv[i, j+1]] 
+
+    return bcC

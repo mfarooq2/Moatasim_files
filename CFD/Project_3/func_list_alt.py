@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 def GenPointer(nx, ny):
     ## Memory allocation
     ip = np.nan*np.ones((nx,ny))
@@ -24,6 +25,9 @@ def GenPointer(nx, ny):
         for j in range(1,ny):
             iv[i, j] = id_u
             id_u = id_u + 1
+    ip[np.isnan(ip)]=0
+    iv[np.isnan(iv)]=0
+    iu[np.isnan(iu)]=0
     return ip.astype(int),iu.astype(int),iv.astype(int)
 
 def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip):
@@ -384,7 +388,6 @@ def BC_Laplace(uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,n
     return bcL
 
 def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,ny,dx,dy):
-
     
     
     
@@ -414,14 +417,15 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
                                + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 ) / dx  \
                            - ( - ( qi[iu[i  ,j-1]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
                                + ( qi[iu[i  ,j  ]] + qi[iu[i  ,j+1]] ) / 2 * ( qi[iv[i-1,j+1]] + qi[iv[i  ,j+1]] ) / 2 ) / dy                
-
+        
     # bottom inner
     j = 0
     for i in range(2,nx-1):
         qo[iu[i, j]] = - ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2          \
                                + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 ) / dx   \
-                           - ( -   uBC_B                                   *   vBC_B                                            \
+                           - ( -   (uBC_B                                   *   vBC_B)                                            \
                                + ( qi[iu[i  ,j  ]] + qi[iu[i  ,j+1]] ) / 2 * ( qi[iv[i-1,j+1]] + qi[iv[i  ,j+1]] ) / 2 ) / dy      
+        
 
     # right inner
     i=-1
@@ -434,11 +438,10 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     # top inner
     j=-1
     for i in range(2,nx-1):
-        qo[iu[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2         \
+        qo[iu[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2          \
                                             + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 )   \
                                - (1/dy) * ( - ( qi[iu[i  ,j-1]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
-                                            + ( uBC_T*vBC_T ) )
-
+                                            + ( uBC_T )* ( vBC_T ) )  
     ## Corners
     # bottom left
     i = 1
@@ -460,27 +463,24 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     # top left
     i= 1
     j=-1
-    qo[iu[i, j]] =  - (1/dx) * ( - ( uBC_L           + qi[iu[i  ,j  ]] ) / 2 * ( uBC_L           + qi[iu[i  ,j  ]] ) / 2          \
+
+    qo[iu[i, j]] = - (1/dx) * ( - ( uBC_L+ qi[iu[i  ,j  ]] ) / 2 * ( uBC_L+ qi[iu[i  ,j  ]] ) / 2          \
                                             + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 )   \
-                              - (1/dy) * ( - ( qi[iu[i  ,j-1]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
-                                            + ( uBC_T*vBC_T ) )     
-
-
+                               - (1/dy) * ( - ( qi[iu[i  ,j-1]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
+                                            + ( uBC_T) * ( vBC_T )  ) 
     # top right
     i=-1
     j=-1
-    qo[iu[i, j]] =  - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2         \
-                                            + ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iu[i  ,j  ]] + qi[iu[i+1,j  ]] ) / 2 )   \
-                                               - (1/dy) * ( - ( qi[iu[i  ,j-1]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
-                                            + ( uBC_T*vBC_T ) )  
-
-
-
+    
+    qo[iu[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2          \
+                                            + ( qi[iu[i  ,j  ]] + uBC_R ) / 2 * ( qi[iu[i  ,j  ]] + uBC_R ) / 2 )   \
+                               - (1/dy) * ( - ( qi[iu[i  ,j-1]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
+                                            + ( uBC_T ) * ( vBC_T ) )  
     ## 2. V-Component
     ## inner domain
     for i in range(1,nx-1): 
         for j in range(2,ny-1):
-            qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
+            qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i,j-1 ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
                                         + ( qi[iu[i+1 ,j-1  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
                            - (1/dy) * ( - ( qi[iv[i  ,j-1]] + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
                                         + ( qi[iv[i  ,j+1  ]] + qi[iv[i  ,j]] ) / 2 * ( qi[iv[i,j+1]] + qi[iv[i  ,j]] ) / 2 )   
@@ -514,10 +514,13 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     # top inner 
     j=-1
     for i in range(1,nx-1):
-        qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
-                                + ( qi[iu[i+1 ,j-1  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
-                - (1/dy) * ( - ( qi[iv[i  ,j-1]] + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
-                                + ( vBC_T + qi[iv[i  ,j]] ) / 2 * ( vBC_T + qi[iv[i  ,j]] ) / 2 )   
+        qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i,j-1 ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
+                                        + ( qi[iu[i+1 ,j-1  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
+                           - (1/dy) * ( - ( qi[iv[i  ,j-1]] + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
+                                        + ( vBC_T + qi[iv[i  ,j]] ) / 2 * ( vBC_T+ qi[iv[i  ,j]] ) / 2 )  
+        
+
+
 
     ## Corners
     # bottom left   ##Needs Coding
@@ -538,19 +541,21 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     # top left   ##Needs Coding
     i=0
     j=-1
-    qo[iv[i, j]] = - (1/dx) * ( - ( uBC_L*vBC_L)         \
-                                + ( qi[iu[i+1 ,j  ]] + qi[iu[i+1,j -1]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
-               - (1/dy) * ( - ( qi[iv[i  ,j-1]] + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
-                            + ( qi[iv[i  ,j+1  ]] + qi[iv[i  ,j]] ) / 2 * ( qi[iv[i,j+1]] + qi[iv[i  ,j]] ) / 2 )   
+    qo[iv[i, j]] = - (1/dx) * ( - ( uBC_L) * (vBC_L)          \
+                                        + ( qi[iu[i+1 ,j-1  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
+                           - (1/dy) * ( - ( qi[iv[i  ,j-1]] + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
+                                        + ( vBC_T+ qi[iv[i  ,j]] ) / 2 * ( vBC_T + qi[iv[i  ,j]] ) / 2 )   
+    
 
     ### top right   ##Needs Coding
     i=-1
     j=-1
-    qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i,j  ]] + qi[iu[i  ,j -1]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
+    qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i,j -1]] + qi[iu[i  ,j]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
                             + ( uBC_R*vBC_R) )   \
                - (1/dy) * ( - ( qi[iv[i  ,j-1]] + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
-                            + ( qi[iv[i  ,j+1  ]] + qi[iv[i  ,j]] ) / 2 * ( qi[iv[i,j+1]] + qi[iv[i  ,j]] ) / 2 )   
+                            + ( vBC_T + qi[iv[i  ,j]] ) / 2 * ( vBC_T + qi[iv[i  ,j]] ) / 2 )   
     return qo
+    
 
 def S_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
     return qi+(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy)
@@ -565,15 +570,35 @@ def R_inv_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
 
 def CG_solver(Opt,b,qi,args,dt,v,cg_iter):
     rhs=b
-    #lhs=Opt(qi,*args)
-    #d_old=rhs-lhs
-    #r_old=d_old
-
+    lhs=Opt(qi,*args)
     d_old=rhs-lhs
     r_old=d_old
 
     for i in range(cg_iter):
         intermediate_vec=Opt(d_old,*args)
+        alpha_factor=((r_old.T)@r_old)/((d_old.T)@(intermediate_vec))
+
+        qi=qi+(alpha_factor[0,0])*d_old
+        r_new=r_old-(alpha_factor[0,0])*(intermediate_vec)
+
+        beta=((r_new.T)@(r_new))/((r_old.T)@(r_old))
+        d_new=r_new+(beta[0,0])*d_old
+        d_old=d_new
+        r_old=r_new
+    return qi
+
+def CG_solver_all(Opt1,Opt2,Opt3,b,qi,args1,args2,args3,dt,v,cg_iter):
+    rhs=b
+    lhs=Opt1(qi,*args1)
+    lhs=Opt2(lhs,*args2)
+    #lhs=Opt3(lhs,*args3)
+    d_old=rhs-lhs
+    r_old=d_old
+
+    for i in range(cg_iter):
+        intermediate_vec=Opt1(d_old,*args1)
+        intermediate_vec=Opt2(intermediate_vec,*args2)
+        #intermediate_vec=Opt3(intermediate_vec,*args3)
         alpha_factor=((r_old.T)@r_old)/((d_old.T)@(intermediate_vec))
 
         qi=qi+(alpha_factor[0,0])*d_old
