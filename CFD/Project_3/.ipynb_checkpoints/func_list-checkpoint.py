@@ -619,9 +619,10 @@ def CG_solver_all(Opt,b,qi,args1,args2,args3,cg_iter):
     return qi
 
 def pointer_mapping(mat):
-    vis_mat=pd.DataFrame(mat)
+    vis_mat=pd.DataFrame(mat.T)
+    vis_mat=vis_mat[::-1]
     vis_mat.columns=[f"x={i}" for i in vis_mat.columns]
-    vis_mat.index=[f"y={len(vis_mat.index)-(i+1)}" for i in vis_mat.index]
+    vis_mat.index=[f"y={i}" for i in vis_mat.index]
     return vis_mat
 
 def curl_operator(qi,np_,nu,ip,iu,iv,nx,ny,dx,dy,dt,v):

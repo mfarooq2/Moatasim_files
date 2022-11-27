@@ -5,6 +5,7 @@ def GenPointer(nx, ny):
     ip = np.nan*np.ones((nx,ny))
     iu = np.nan*np.ones((nx,ny))
     iv = np.nan*np.ones((nx,ny))
+    idu = np.nan*np.ones((nx,ny))
 
     ## Pointer matrix for P
     id_p = 0 # index to be used in vector variable P
@@ -12,6 +13,13 @@ def GenPointer(nx, ny):
         for j in range(0,ny):
             ip[i, j] = id_p
             id_p = id_p + 1 
+        ## Pointer matrix for P
+    
+    id_uni = 0 # index to be used for universal_calculation
+    for i in range(0,nx):
+        for j in range(0,ny):
+            idu[i, j] = id_uni
+            id_uni = id_uni + 1 
 
     ## Pointer matrix for ux
     id_u = 0  # index to be used in vector variable u = [ux; uy]
@@ -28,7 +36,8 @@ def GenPointer(nx, ny):
     ip[np.isnan(ip)]=0
     iv[np.isnan(iv)]=0
     iu[np.isnan(iu)]=0
-    return ip.astype(int),iu.astype(int),iv.astype(int)
+    idu[np.isnan(idu)]=0
+    return ip.astype(int),iu.astype(int),iv.astype(int),idu.astype(int)
 
 def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
     ## Gradient operator: 
@@ -619,9 +628,10 @@ def CG_solver_all(Opt,b,qi,args1,args2,args3,cg_iter):
     return qi
 
 def pointer_mapping(mat):
-    vis_mat=pd.DataFrame(mat)
+    vis_mat=pd.DataFrame(mat.T)
+    vis_mat=vis_mat[::-1]
     vis_mat.columns=[f"x={i}" for i in vis_mat.columns]
-    vis_mat.index=[f"y={len(vis_mat.index)-(i+1)}" for i in vis_mat.index]
+    vis_mat.index=[f"y={i}" for i in vis_mat.index]
     return vis_mat
 
 def curl_operator(qi,np_,nu,ip,iu,iv,nx,ny,dx,dy,dt,v):
@@ -731,3 +741,15 @@ def BC_Curl(uBC_L, uBC_R, vBC_T, vBC_B,np_,ip,nx,ny,dx,dy):
     bcC[ip[i, j]] = (+ uBC_R / dy) - (vBC_T / dx) # ## + qi[iu[i+1, j]]  + qi[iv[i, j+1]] 
 
     return bcC
+def inter_velocity(u_new,nx,ny,iu,iv,idu):
+    u_new_int=np.zeros((nx*ny,1))
+    v_new_int=np.zeros((nx*ny,1))
+
+    for i in range(1,nx):
+        for j in range(0,ny-1):
+            u_new_int[idu[i-1,j]]=(u_new[iu[i,j]]+u_new[iu[i,j+1]])/2
+    
+    for i in range(0,nx-1):
+        for j in range(1,ny):
+            v_new_int[idu[i,j-1]]=(u_new[iv[i,j]]+u_new[iv[i+1,j]])/2
+    return u_new_int,v_new_int

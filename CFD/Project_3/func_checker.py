@@ -3,11 +3,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from numpy.linalg import norm
 from tqdm import tqdm
-from func_list import GenPointer,Grad,Div,BC_Div,Laplace,BC_Laplace,Adv,pointer_mapping,CG_solver,CG_solver_all,R_operator,S_operator,R_inv_operator,curl_operator,BC_Curl
+from func_list import GenPointer,Grad,Div,BC_Div,Laplace,BC_Laplace,Adv,pointer_mapping,CG_solver,CG_solver_all,R_operator,S_operator,R_inv_operator,curl_operator,BC_Curl,inter_velocity
 nx = 29
 ny = 30
 ## Pointer and Grid
-ip, iu, iv = GenPointer(nx, ny)
+ip, iu, iv,idu = GenPointer(nx, ny)
 
 dx = 1 / nx
 dy = 1 / ny
@@ -89,24 +89,25 @@ with open('/Users/moatasimfarooque/Documents/CFD/Moatasim_files/CFD/Project_3/te
 
 nx=29
 ny=30
-ip, iu, iv = GenPointer(nx, ny)
-X,Y=np.meshgrid(np.linspace(0,1,nx), np.linspace(0,1,ny), indexing='ij')
-u_vec=np.reshape(u_new[0:iu[-1,-1]+1], (nx-1,ny), order='C')
-new_row=np.zeros((ny))
-u_vec=np.vstack([u_vec, new_row])
+ip, iu, iv,idu = GenPointer(nx, ny)
+u_new_int,v_new_int=inter_velocity(u_new,nx,ny,iu,iv,idu)
+# X,Y=np.meshgrid(np.linspace(0,1,nx), np.linspace(0,1,ny), indexing='ij')
+# u_vec=np.reshape(u_new[0:iu[-1,-1]+1], (nx-1,ny), order='C')
+# new_row=np.zeros((ny))
+# u_vec=np.vstack([u_vec, new_row])
 
-v_vec=np.reshape(u_new[iu[-1,-1]+1:], (nx,ny-1), order='C')
-new_row=np.zeros((nx,1))
-v_vec=np.hstack([v_vec, new_row])
-curl_new=curl_operator(u_new,np_,nu,ip,iu,iv,nx,ny,dx,dy,dt,v)+BC_Curl(uBC_L, uBC_R, vBC_T, vBC_B,np_,ip,nx,ny,dx,dy)
-curl_visual=np.reshape(curl_new,(nx,ny))
+# v_vec=np.reshape(u_new[iu[-1,-1]+1:], (nx,ny-1), order='C')
+# new_row=np.zeros((nx,1))
+# v_vec=np.hstack([v_vec, new_row])
+# curl_new=curl_operator(u_new,np_,nu,ip,iu,iv,nx,ny,dx,dy,dt,v)+BC_Curl(uBC_L, uBC_R, vBC_T, vBC_B,np_,ip,nx,ny,dx,dy)
+# curl_visual=np.reshape(curl_new,(nx,ny))
 
-fig,ax=plt.subplots(1,1)
-cp = ax.contourf(X, Y, curl_visual)
-#cp = ax.contourf(X, Y, v_vec)
-fig.colorbar(cp)
-ax.set_title('Filled Contours Plot')
-ax.set_xlabel('x (units)')
-ax.set_ylabel('y (units)')
-plt.show()
-s=2
+# fig,ax=plt.subplots(1,1)
+# cp = ax.contourf(X, Y, curl_visual)
+# #cp = ax.contourf(X, Y, v_vec)
+# fig.colorbar(cp)
+# ax.set_title('Filled Contours Plot')
+# ax.set_xlabel('x (units)')
+# ax.set_ylabel('y (units)')
+# plt.show()
+# s=2
