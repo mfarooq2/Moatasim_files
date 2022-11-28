@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+from numpy.linalg import norm
+from numba import njit
+from numba import stencil
 def GenPointer(nx, ny):
     ## Memory allocation
     ip = np.nan*np.ones((nx,ny))
@@ -38,7 +41,7 @@ def GenPointer(nx, ny):
     iu[np.isnan(iu)]=0
     idu[np.isnan(idu)]=0
     return ip.astype(int),iu.astype(int),iv.astype(int),idu.astype(int)
-
+@njit(parallel=True)
 def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
     ## Gradient operator: 
     #       input: p-type (np elements)
@@ -57,7 +60,7 @@ def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
         for j in range(1,ny):
             qo[iv[i, j]] = ( -qi[ip[i, j-1]] + qi[ip[i, j]] ) / dy
     return qo
-
+@njit(parallel=True)
 def Div(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
 
     ## Initialize output
@@ -166,7 +169,7 @@ def BC_Div(uBC_L, uBC_R, vBC_T, vBC_B,np_,ip,nx,ny,dx,dy):
     bcD[ip[i, j]] = (+ uBC_R / dx) + (vBC_T / dy) # ## + qi[iu[i+1, j]]  + qi[iv[i, j+1]] 
 
     return bcD
-
+@njit(parallel=True)
 def Laplace(qi,nu,iu,iv,nx,ny,dx,dy,dt,v ):
     
     ## Laplace operator: 
@@ -395,7 +398,7 @@ def BC_Laplace(uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,n
     bcL[iv[i, j]] =  2*vBC_R/dx**2+   vBC_T / (dy**2)
 
     return bcL
-
+@njit(parallel=True)
 def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,ny,dx,dy,dt,v):
     
     
@@ -573,7 +576,7 @@ def R_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
 def R_inv_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
     return qi+(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy,dt,v)    
 
-
+@njit
 def CG_solver(Opt,b,qi,args,cg_iter):
     rhs=b
     lhs=Opt(qi,*args)
@@ -592,9 +595,10 @@ def CG_solver(Opt,b,qi,args,cg_iter):
         d_old=d_new
         r_old=r_new
     return qi
-
+@njit(parallel=True)
 def CG_solver_all(Opt,b,qi,args1,args2,args3,cg_iter):
     rhs=b
+    res_list=[]
     if len(Opt)==3:
         #lhs=Opt[0](qi,*args1)
         #lhs=Opt[1](lhs,*args2)
@@ -616,8 +620,14 @@ def CG_solver_all(Opt,b,qi,args1,args2,args3,cg_iter):
             intermediate_vec=Opt[0](d_old,*args1)
 
         alpha_factor=((r_old.T)@r_old)/((d_old.T)@(intermediate_vec))
-
+        
+        tr=qi
         qi=qi+(alpha_factor[0,0])*d_old
+        if i!=0:
+            res=norm(tr-qi)/norm(tr)
+            res_list.append(res)
+            if res<1e-3:
+                break
         r_new=r_old-(alpha_factor[0,0])*(intermediate_vec)
 
         beta=((r_new.T)@(r_new))/((r_old.T)@(r_old))
@@ -627,9 +637,10 @@ def CG_solver_all(Opt,b,qi,args1,args2,args3,cg_iter):
 
     return qi
 
-def pointer_mapping(mat):
+def pointer_mapping(mat,flags):
     vis_mat=pd.DataFrame(mat.T)
-    vis_mat=vis_mat[::-1]
+    if flags==1:
+        vis_mat=vis_mat[::-1]
     vis_mat.columns=[f"x={i}" for i in vis_mat.columns]
     vis_mat.index=[f"y={i}" for i in vis_mat.index]
     return vis_mat
@@ -753,3 +764,12 @@ def inter_velocity(u_new,nx,ny,iu,iv,idu):
         for j in range(1,ny):
             v_new_int[idu[i,j-1]]=(u_new[iv[i,j]]+u_new[iv[i+1,j]])/2
     return u_new_int,v_new_int
+def explicit_matrix(A_operator,out,inp,args):
+
+    matrix_A=[]
+    for i in range(inp):
+        Q=np.zeros((inp,1))
+
+        Q[i,0]=1
+        matrix_A.append(list(A_operator(Q,*args)[:,0]))
+    return np.array(matrix_A).T
