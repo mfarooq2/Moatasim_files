@@ -1,0 +1,14 @@
+{
+"nx":4,
+"ny":4,
+"uBC_L":0,
+"uBC_R":0,
+"uBC_B":0,
+"uBC_T":1,
+"vBC_L":0,
+"vBC_R":0,
+"vBC_T":0,
+"vBC_B":0,
+"Re":40,
+"cg_iter":1000
+}

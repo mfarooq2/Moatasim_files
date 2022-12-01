@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
+from multiprocessing import Pool, freeze_support
 from numpy.linalg import norm
-from numba import njit
-from numba import stencil
+import multiprocessing
+from tqdm import tqdm
 def GenPointer(nx, ny):
     ## Memory allocation
     ip = np.nan*np.ones((nx,ny))
@@ -41,7 +42,6 @@ def GenPointer(nx, ny):
     iu[np.isnan(iu)]=0
     idu[np.isnan(idu)]=0
     return ip.astype(int),iu.astype(int),iv.astype(int),idu.astype(int)
-@njit(parallel=True)
 def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
     ## Gradient operator: 
     #       input: p-type (np elements)
@@ -60,7 +60,6 @@ def Grad(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
         for j in range(1,ny):
             qo[iv[i, j]] = ( -qi[ip[i, j-1]] + qi[ip[i, j]] ) / dy
     return qo
-@njit(parallel=True)
 def Div(qi,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
 
     ## Initialize output
@@ -169,8 +168,7 @@ def BC_Div(uBC_L, uBC_R, vBC_T, vBC_B,np_,ip,nx,ny,dx,dy):
     bcD[ip[i, j]] = (+ uBC_R / dx) + (vBC_T / dy) # ## + qi[iu[i+1, j]]  + qi[iv[i, j+1]] 
 
     return bcD
-@njit(parallel=True)
-def Laplace(qi,nu,iu,iv,nx,ny,dx,dy,dt,v ):
+def Laplace(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
     
     ## Laplace operator: 
     #       input: u-type (nu elements)
@@ -398,8 +396,7 @@ def BC_Laplace(uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,n
     bcL[iv[i, j]] =  2*vBC_R/dx**2+   vBC_T / (dy**2)
 
     return bcL
-@njit(parallel=True)
-def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,ny,dx,dy,dt,v):
+def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,np_,nu,nx,ny,dx,dy,iu,iv,ip,dt,v):
     
     
     ## advection operator (BC embedded): -\nabla \cdot (uu) 
@@ -494,7 +491,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     ## inner domain
     for i in range(1,nx-1): 
         for j in range(2,ny-1):
-            qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
+            qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i,j-1  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
                                         + ( qi[iu[i+1 ,j-1  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
                            - (1/dy) * ( - ( qi[iv[i  ,j-1]] + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
                                         + ( qi[iv[i  ,j+1  ]] + qi[iv[i  ,j]] ) / 2 * ( qi[iv[i,j+1]] + qi[iv[i  ,j]] ) / 2 )   
@@ -528,7 +525,7 @@ def Adv(qi, uBC_L, uBC_R, uBC_B, uBC_T, vBC_L, vBC_R, vBC_T, vBC_B,nu,iu,iv,nx,n
     # top inner 
     j=-1
     for i in range(1,nx-1):
-        qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i-1,j  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
+        qo[iv[i, j]] = - (1/dx) * ( - ( qi[iu[i,j-1  ]] + qi[iu[i  ,j  ]] ) / 2 * ( qi[iv[i-1,j  ]] + qi[iv[i  ,j  ]] ) / 2          \
                                 + ( qi[iu[i+1 ,j-1  ]] + qi[iu[i+1,j  ]] ) / 2 * ( qi[iv[i+1  ,j  ]] + qi[iv[i,j ]] ) / 2 )   \
                 - (1/dy) * ( - ( qi[iv[i  ,j-1]] + qi[iv[i  ,j  ]] ) / 2 * ( qi[iv[i,j-1  ]] + qi[iv[i  ,j  ]] ) / 2          \
                                 + ( vBC_T + qi[iv[i  ,j]] ) / 2 * ( vBC_T + qi[iv[i  ,j]] ) / 2 )   
@@ -576,7 +573,6 @@ def R_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
 def R_inv_operator(qi,nu,iu,iv,nx,ny,dx,dy,dt,v):
     return qi+(dt/2)*Laplace(qi,nu,iu,iv,nx,ny,dx,dy,dt,v)    
 
-@njit
 def CG_solver(Opt,b,qi,args,cg_iter):
     rhs=b
     lhs=Opt(qi,*args)
@@ -595,7 +591,6 @@ def CG_solver(Opt,b,qi,args,cg_iter):
         d_old=d_new
         r_old=r_new
     return qi
-@njit(parallel=True)
 def CG_solver_all(Opt,b,qi,args1,args2,args3,cg_iter):
     rhs=b
     res_list=[]
@@ -611,7 +606,7 @@ def CG_solver_all(Opt,b,qi,args1,args2,args3,cg_iter):
     d_old=rhs-lhs
     r_old=d_old
 
-    for i in range(cg_iter):
+    for i in tqdm(range(cg_iter)):
         if len(Opt)==3:
             intermediate_vec=Opt[2](Opt[1](Opt[0](d_old,*args1),*args2),*args3)
         elif len(Opt)==2:
@@ -772,4 +767,48 @@ def explicit_matrix(A_operator,out,inp,args):
 
         Q[i,0]=1
         matrix_A.append(list(A_operator(Q,*args)[:,0]))
+    return np.array(matrix_A).T
+def CG_solver_trial(R_operator,b,u_new,args,cg_iter):
+    rhs=b
+
+    qi =[np.random.rand(u_new.shape[0],u_new.shape[1]) for i in range(4)]
+
+    with Pool() as pool:
+        lhs = pool.starmap(R_operator, [(qi[0], *args), (qi[1], *args), (qi[2], *args), (qi[3], *args)])
+
+    d_old=rhs-lhs
+    r_old=d_old
+
+    for i in range(cg_iter):
+        with Pool() as pool:
+            intermediate_vec= pool.starmap(R_operator, [(d_old[0], *args), (d_old[1], *args), (d_old[2], *args), (d_old[3], *args)])
+        alpha_factor=(((r_old[0].T@r_old).reshape(r_old.shape[0],1))/((d_old[0].T@intermediate_vec).reshape(r_old.shape[0],1))).reshape(r_old.shape[0],1,1)
+        tr=qi
+        r_new=r_old-(alpha_factor)*(np.array(intermediate_vec))
+        qi=qi+(alpha_factor)*d_old
+        if i!=0:
+            res=(norm(tr-qi,axis=1)/(norm(tr,axis=1)))
+            res[np.isnan(res)] = 0
+            res_min=np.min(res[res>0])
+            ind=np.where(res == res_min)[0][0]
+            if res_min<1e-3:
+                break
+        beta=((((r_new[0].T)@(r_new)).reshape(r_new.shape[0],1)/((r_old[0].T@r_old).reshape(r_old.shape[0],1))).reshape(r_old.shape[0],1,1))
+        d_new=r_new + (beta)*d_old
+        d_old=d_new
+        r_old=r_new
+    return qi[ind]
+
+def explicit_matrix_combo(combine_operator,inp,args):
+
+    matrix_A=[]
+    for i in range(inp):
+        Q=np.zeros((inp,1))
+        Q[i,0]=1
+        resu1=combine_operator[0](Q,*args)
+        if len(combine_operator)>1:
+                resu1=combine_operator[1](resu1,*args)
+        if len(combine_operator)>2:
+            resu1=combine_operator[2](resu1,*args)
+        matrix_A.append(list(resu1[:,0]))
     return np.array(matrix_A).T

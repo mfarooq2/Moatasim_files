@@ -201,3 +201,6 @@ class Streamlines(object):
         D = np.array([np.hypot(x-xj, y-yj)
                       for xj,yj in zip(xVals[:-1],yVals[:-1])])
         return (D < 0.9 * self.dr).any()
+
+
+    ( qi[iu[1:nx-2,j]] + qi[iu[2:nx-1, 1:ny-1]] ) / 2 
